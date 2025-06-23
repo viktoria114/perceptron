@@ -4,13 +4,24 @@ let pesos = [0, 0, 0];
 let conjuntoDeEntrenamiento = [];
 let yaEntrenado = false;
 
+function mostrarMensaje(mensaje) {
+  const infoPanel = document.getElementById("info");
+  const nuevoParrafo = document.createElement("p");
+  nuevoParrafo.textContent = mensaje;
+  infoPanel.appendChild(nuevoParrafo);
+
+  // Auto scroll hacia el final
+  infoPanel.parentElement.scrollTop = infoPanel.parentElement.scrollHeight;
+}
+
 Papa.parse("Iris2.csv", {
   download: true,
   header: true,
   dynamicTyping: true,
   delimiter: ";",
   complete: function (results) {
-    console.log("Contenido del CSV:", results.data);
+    // console.log("Contenido del CSV:", results.data);
+    mostrarMensaje("Datos cargados correctamente desde el CSV.");
 
     conjuntoDeEntrenamiento = results.data
       .filter((row) => row.x1 !== undefined)
@@ -26,7 +37,7 @@ function productoPunto(valores, pesos) {
 
 function entrenarPerceptron() {
   if (yaEntrenado) {
-    console.log("El perceptrón ya fue entrenado.");
+    mostrarMensaje("El perceptrón ya fue entrenado.");
     return;
   }
 
@@ -51,7 +62,7 @@ function entrenarPerceptron() {
     }
 
     iteracion++;
-    console.log(
+    mostrarMensaje(
       `Iteración ${iteracion}, errores: ${contadorDeErrores}, pesos ${pesos}`
     );
 
@@ -60,8 +71,9 @@ function entrenarPerceptron() {
     }
   }
 
-  console.log("Entrenamiento finalizado.");
-  console.log("Pesos finales:", pesos);
+  mostrarMensaje("Entrenamiento finalizado.");
+  mostrarMensaje(`Pesos finales: ${pesos}`);
+
   yaEntrenado = true;
 }
 
@@ -104,14 +116,16 @@ function probarPerceptron() {
 
 function evaluarDesempeño(entradasEsperadas) {
   let correctos = 0;
+  const clasificados = [];
 
   entradasEsperadas.forEach(([entrada, salidaEsperada], index) => {
     const salidaPredicha = productoPunto(entrada, pesos) > umbral ? 1 : 0;
     const esCorrecto = salidaPredicha === salidaEsperada;
+    clasificados.push([entrada, salidaPredicha]);
 
     if (esCorrecto) correctos++;
 
-    console.log(
+    mostrarMensaje(
       `Entrada ${index + 1}: [${entrada.slice(1)}] → ` +
         `Predicho: ${salidaPredicha} (${
           salidaPredicha === 1 ? "Setosa" : "Otro"
@@ -121,8 +135,94 @@ function evaluarDesempeño(entradasEsperadas) {
   });
 
   const porcentaje = (correctos / entradasEsperadas.length) * 100;
-  console.log(`\nAciertos: ${correctos} / ${entradasEsperadas.length}`);
-  console.log(`Porcentaje de aciertos: ${porcentaje.toFixed(2)}%`);
+  mostrarMensaje(`Aciertos: ${correctos} / ${entradasEsperadas.length}`);
+  mostrarMensaje(`Porcentaje de aciertos: ${porcentaje.toFixed(2)}%`);
+
+  // Llamar a la función de graficado
+  graficarPuntosDePrueba(clasificados);
+}
+
+function graficarPuntosDePrueba(puntosClasificados) {
+  const puntosSetosa = [];
+  const puntosOtros = [];
+
+  for (const [entrada, salidaPredicha] of puntosClasificados) {
+    const punto = { x: entrada[1], y: entrada[2] };
+    if (salidaPredicha === 1) {
+      puntosSetosa.push(punto);
+    } else {
+      puntosOtros.push(punto);
+    }
+  }
+
+  // Reutilizar el contexto del canvas
+  const ctx = document.getElementById("grafico").getContext("2d");
+
+  // Destruir el gráfico anterior si existe
+  if (window.miGrafico) {
+    window.miGrafico.destroy();
+  }
+
+  // Redibujar todo
+  window.miGrafico = new Chart(ctx, {
+    type: "scatter",
+    data: {
+      datasets: [
+        {
+          label: "Setosa (entrenamiento)",
+          data: conjuntoDeEntrenamiento
+            .filter(([, salida]) => salida === 1)
+            .map(([entrada]) => ({ x: entrada[1], y: entrada[2] })),
+          backgroundColor: "red",
+          pointRadius: 6,
+        },
+        {
+          label: "Otros (entrenamiento)",
+          data: conjuntoDeEntrenamiento
+            .filter(([, salida]) => salida === 0)
+            .map(([entrada]) => ({ x: entrada[1], y: entrada[2] })),
+          backgroundColor: "green",
+          pointRadius: 6,
+        },
+        {
+          label: "Setosa (prueba)",
+          data: puntosSetosa,
+          backgroundColor: "rgba(255, 0, 0, 0.4)",
+          pointRadius: 6,
+        },
+        {
+          label: "Otros (prueba)",
+          data: puntosOtros,
+          backgroundColor: "rgba(0, 128, 0, 0.4)",
+          pointRadius: 6,
+        },
+      ],
+    },
+    options: {
+      responsive: false,
+      plugins: {
+        legend: {
+          labels: {
+            color: "#000",
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: "linear",
+          position: "bottom",
+          title: { display: true, text: "Sepal Length" },
+          min: 4,
+          max: 8,
+        },
+        y: {
+          title: { display: true, text: "Sepal Width" },
+          min: 1.8,
+          max: 5,
+        },
+      },
+    },
+  });
 }
 
 function graficarEntradas() {
@@ -140,7 +240,7 @@ function graficarEntradas() {
 
   const ctx = document.getElementById("grafico").getContext("2d");
 
-  new Chart(ctx, {
+  window.miGrafico = new Chart(ctx, {
     type: "scatter",
     data: {
       datasets: [
@@ -172,13 +272,9 @@ function graficarEntradas() {
           type: "linear",
           position: "bottom",
           title: { display: true, text: "Sepal Length" },
-          min: 4,
-          max: 8,
         },
         y: {
           title: { display: true, text: "Sepal Width" },
-          min: 1.8,
-          max: 5,
         },
       },
     },
